@@ -2,6 +2,15 @@ import tkinter as tk
 from tkinter import messagebox
 from docx import Document
 import random
+import openai
+import os
+from dotenv import load_dotenv
+import tkinter as tk
+
+# Load the OpenAI API key from the .env file
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 # Function to parse questions from the Practice Test Document
 def parse_questions(doc_path):
@@ -96,17 +105,40 @@ class PracticeTestApp:
         else:
             self.show_results()  # Ensure this method is defined in the class
 
-    # Method to show results
+    def get_chatgpt_explanation(self, prompt):
+        """Function to send prompt to OpenAI API and get a response."""
+        try:
+            # Using the new ChatCompletion API with gpt-3.5-turbo or gpt-4
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",  # You can switch to "gpt-4" if needed
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,  # Adjust token count based on needs
+                temperature=0.7
+            )
+            return response['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+
+    # Method to show results and fetch detailed explanations from ChatGPT
     def show_results(self):
         correct = 0
         results_window = tk.Toplevel(self.master)
         results_window.title("Results")
 
-        # Create a Text widget to display results with different colors
-        result_text_widget = tk.Text(results_window, wrap="word", width=60, height=20)
-        result_text_widget.pack(pady=20)
+        # Create a Text widget to display results on the left side (60% width)
+        result_text_widget = tk.Text(results_window, wrap="word", width=50, height=20)
+        result_text_widget.grid(row=0, column=0, padx=10, pady=20)
 
-        # Evaluate answers
+        # Create another Text widget for ChatGPT explanations on the right side (40% width)
+        chatgpt_response_widget = tk.Text(results_window, wrap="word", width=40, height=20)
+        chatgpt_response_widget.grid(row=0, column=1, padx=10, pady=20)
+
+        # Evaluate answers and build the result summary
+        result_summary = "Quiz Results:\n"
         for i, q in enumerate(self.questions):
             selected = self.user_answers[i]
             correct_answer = q['answer']  # The correct answer is a string, e.g., 'b'
@@ -122,30 +154,42 @@ class PracticeTestApp:
             selected_option_text = q['options'][int(selected)]  # Get the full text of the selected option
             correct_option_text = q['options'][correct_option]  # Get the full text of the correct option
 
-            # If the answer is correct
-            result_text_widget.insert(tk.END, f"Q{i + 1}. {question_text}\n")
+            # Add to result summary
+            result_summary += f"Q{i + 1}. {question_text}\n"
             if int(selected) == correct_option:
                 correct += 1
-                result_text_widget.insert(tk.END, f"Your Answer: {selected_option_text} (Correct)\n\n", 'correct')
+                result_summary += f"Your Answer: {selected_option_text} (Correct)\n\n"
             else:
-                # If the answer is wrong, display the selected answer in red and the correct answer normally
-                result_text_widget.insert(tk.END, f"Your Answer: {selected_option_text} (Wrong)\n", 'wrong')
-                result_text_widget.insert(tk.END, f"Correct Answer: {correct_option_text} (Correct)\n\n", 'correct')
+                result_summary += f"Your Answer: {selected_option_text} (Wrong)\n"
+                result_summary += f"Correct Answer: {correct_option_text} (Correct)\n\n"
+
+        # Insert the result summary into the Text widget
+        result_text_widget.insert(tk.END, result_summary)
 
         # Show the final score
         score_text = f"Your Score: {correct}/{len(self.questions)}\n\n"
         result_text_widget.insert(tk.END, score_text)
 
-        # Configure tags to color text
+        # Configure tags to color text (optional)
         result_text_widget.tag_config('wrong', foreground="red")
         result_text_widget.tag_config('correct', foreground="green")
 
         # Make the Text widget read-only
         result_text_widget.config(state=tk.DISABLED)
 
+        # Prepare the prompt to be sent to ChatGPT
+        prompt = f"{result_summary}\n\nCan you provide elaborate explanation for each answer, even if they are right or wrong? This will enhance the student's learning through the practice test."
+
+        # Fetch the explanation from ChatGPT
+        chatgpt_explanation = self.get_chatgpt_explanation(prompt)
+
+        # Insert the response into the right-side Text widget
+        chatgpt_response_widget.insert(tk.END, chatgpt_explanation)
+        chatgpt_response_widget.config(state=tk.DISABLED)
+
         # OK Button to close the results window
         ok_button = tk.Button(results_window, text="OK", command=results_window.destroy)
-        ok_button.pack(pady=10)
+        ok_button.grid(row=1, column=0, columnspan=2, pady=10)
 
 
 # Main function to start the application
