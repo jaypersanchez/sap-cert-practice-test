@@ -1,31 +1,42 @@
+import argparse
 import tkinter as tk
 from tkinter import messagebox
 from docx import Document
 import random
 import openai
 import os
+import pickle
 from dotenv import load_dotenv
-import tkinter as tk
 
 # Load the OpenAI API key from the .env file
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 
 # Function to parse questions from the Practice Test Document
 def parse_questions(doc_path):
     doc = Document(doc_path)
     questions = []
     question = {}
+    
+    # Define keywords for tagging
+    tag_keywords = {
+        'SAP BTP': ['BTP', 'Business Technology Platform'],
+        'Cloud Foundry': ['Cloud Foundry', 'cf push'],
+        'SAP CAP': ['CAP', 'Core Data Services', 'CDS'],
+        'Integration': ['Integration', 'API', 'Integration Suite'],
+        'Side-by-Side Extensions': ['Side-by-Side', 'extension'],
+        'Data Analytics': ['Analytics', 'SAP HANA'],
+        'Automation': ['automation', 'process automation']
+    }
+    
     for para in doc.paragraphs:
         if para.text.startswith("Q"):
             if question and question['options']:  # Only append if there are options
+                # Automatically assign tags based on keywords
+                question['tags'] = assign_tags(question['question'], tag_keywords)
                 questions.append(question)
-            # Check for matching questions
-            if "match the following" in para.text.lower():
-                question = {}  # Reset question to skip it
-            else:
-                question = {'question': para.text.replace("?", ""), 'options': [], 'answer': '', 'explanation': '', 'type': 'standard'}
+            # Reset for new question
+            question = {'question': para.text.replace("?", ""), 'options': [], 'answer': '', 'explanation': '', 'type': 'standard'}
         elif para.text.startswith("A.") or para.text.startswith("B.") or para.text.startswith("C.") or para.text.startswith("D."):
             if question:  # Only add options if a question is being built
                 question['options'].append(para.text)
@@ -35,10 +46,21 @@ def parse_questions(doc_path):
         elif para.text.startswith("Referenced from"):
             if question:  # Only set explanation if a question is being built
                 question['explanation'] = para.text
+    
     # Add the last question if it has options
     if question and question['options']:
+        question['tags'] = assign_tags(question['question'], tag_keywords)
         questions.append(question)
+    
     return questions
+
+# Helper function to assign tags based on keywords
+def assign_tags(question_text, tag_keywords):
+    tags = []
+    for tag, keywords in tag_keywords.items():
+        if any(keyword.lower() in question_text.lower() for keyword in keywords):
+            tags.append(tag)
+    return tags
 
 # Function to load study references from the condensed notes document
 def load_references_from_notes(notes_path):
@@ -49,16 +71,82 @@ def load_references_from_notes(notes_path):
             references.append(para.text)
     return references
 
-# Function to get random questions
-def get_random_questions(questions, num=10):
-    return random.sample(questions, num)
+
+# Load question history from file or return an empty set
+def load_question_history():
+    if os.path.exists("question_history.pkl"):
+        with open("question_history.pkl", "rb") as f:
+            return pickle.load(f)
+    return set()
+
+# Save question history to file
+def save_question_history(history):
+    with open("question_history.pkl", "wb") as f:
+        pickle.dump(history, f)
+
+# Get rotating questions to avoid repetition
+def get_rotating_questions(questions, num=10, num_sets=5):
+    history = load_question_history()
+
+    # Divide questions into subsets for rotation
+    subset_size = len(questions) // num_sets
+    subsets = [questions[i * subset_size:(i + 1) * subset_size] for i in range(num_sets)]
+
+    # Select a subset that hasn't been fully used
+    for subset in subsets:
+        if all(q['question'] not in history for q in subset):
+            # Ensure we sample only as many questions as are available
+            selected_questions = random.sample(subset, min(num, len(subset)))
+            break
+    else:
+        # If all subsets have been used, reset history
+        history.clear()
+        # Ensure we sample only as many questions as are available
+        selected_questions = random.sample(subsets[0], min(num, len(subsets[0])))
+
+    # Update history
+    history.update(q['question'] for q in selected_questions)
+    save_question_history(history)
+
+    return selected_questions
+
+
+# Get questions based on tags (categories) with handling for smaller sample sizes
+def get_tag_based_random_questions(questions, num=10):
+    # Define categories by tags
+    categorized_questions = {}
+    
+    for question in questions:
+        for tag in question.get('tags', []):
+            if tag not in categorized_questions:
+                categorized_questions[tag] = []
+            categorized_questions[tag].append(question)
+
+    selected_questions = []
+    
+    # Ensure we sample from each category
+    for tag, q_list in categorized_questions.items():
+        if q_list:
+            selected_questions.extend(random.sample(q_list, min(2, len(q_list))))
+
+    # Shuffle and return only as many questions as needed
+    random.shuffle(selected_questions)
+    return selected_questions[:min(num, len(selected_questions))]
+
+
 
 # Main GUI Application
 class PracticeTestApp:
-    def __init__(self, master, questions, references):
+    def __init__(self, master, questions, references, mode="rotating"):
         self.master = master
         self.master.title("SAP Certification Practice Test")
-        self.questions = get_random_questions(questions)
+
+        # Switch between rotating or tag-based strategy
+        if mode == "rotating":
+            self.questions = get_rotating_questions(questions, num=10)
+        elif mode == "tag":
+            self.questions = get_tag_based_random_questions(questions, num=10)
+
         self.references = references
         self.current_question = 0
         self.user_answers = []
@@ -127,8 +215,6 @@ class PracticeTestApp:
             return response['choices'][0]['message']['content'].strip()
         except Exception as e:
             return f"Error: {str(e)}"
-
-
 
     # Method to show results and fetch detailed explanations from ChatGPT
     def show_results(self):
@@ -202,15 +288,20 @@ class PracticeTestApp:
 
 # Main function to start the application
 def main():
+    # Use argparse to get the mode from the command-line arguments
+    parser = argparse.ArgumentParser(description="SAP Certification Practice Test")
+    parser.add_argument('--mode', choices=['rotating', 'tag'], default='rotating', help="Choose the mode for the test: rotating or tag.")
+    args = parser.parse_args()
+
     # Parse the questions and references
     questions = parse_questions("PracticeTestChatGptGenerated.docx")
     references = load_references_from_notes("CondensedStudyNotesforCertification.docx")
 
     # Start the GUI
     root = tk.Tk()
-    app = PracticeTestApp(root, questions, references)
+    app = PracticeTestApp(root, questions, references, mode=args.mode)
     root.mainloop()
 
-# Run the application
+
 if __name__ == "__main__":
     main()
