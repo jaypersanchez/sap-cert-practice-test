@@ -291,10 +291,18 @@ class PracticeTestApp:
 
 # Main function to start the application
 def main():
-    # Use argparse to get the mode from the command-line arguments
-    parser = argparse.ArgumentParser(description="SAP Certification Practice Test")
-    parser.add_argument('--mode', choices=['rotating', 'tag'], default='rotating', help="Choose the mode for the test: rotating or tag.")
-    args = parser.parse_args()
+    # Prompt the user to choose the mode using numbers
+    print("Choose the mode for the test:")
+    print("1. Rotating")
+    print("2. Tag")
+    
+    mode_input = input("Enter 1 or 2: ").strip()
+    
+    while mode_input not in ['1', '2']:
+        print("Invalid choice. Please enter 1 for rotating or 2 for tag.")
+        mode_input = input("Enter 1 or 2: ").strip()
+
+    mode = "rotating" if mode_input == '1' else "tag"
 
     # Parse the questions and references
     questions = parse_questions("PracticeTestChatGptGenerated.docx")
@@ -302,7 +310,7 @@ def main():
 
     # Start the GUI
     root = tk.Tk()
-    app = PracticeTestApp(root, questions, references, mode=args.mode)
+    app = PracticeTestApp(root, questions, references, mode=mode)
     root.mainloop()
 
 
