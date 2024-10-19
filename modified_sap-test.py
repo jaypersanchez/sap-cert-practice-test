@@ -85,7 +85,7 @@ def save_question_history(history):
         pickle.dump(history, f)
 
 # Get rotating questions to avoid repetition
-def get_rotating_questions(questions, num=20, num_sets=1):
+def get_rotating_questions(questions, num=10, num_sets=5):
     history = load_question_history()
 
     # Divide questions into subsets for rotation
@@ -112,7 +112,7 @@ def get_rotating_questions(questions, num=20, num_sets=1):
 
 
 # Get questions based on tags (categories) with handling for smaller sample sizes
-def get_tag_based_random_questions(questions, num=20):
+def get_tag_based_random_questions(questions, num=10):
     # Define categories by tags
     categorized_questions = {}
     
@@ -143,11 +143,9 @@ class PracticeTestApp:
 
         # Switch between rotating or tag-based strategy
         if mode == "rotating":
-            self.questions = get_rotating_questions(questions, num=20)  # Changed num to 10
+            self.questions = get_rotating_questions(questions, num=10)
         elif mode == "tag":
-            self.questions = get_tag_based_random_questions(questions, num=20)  # Changed num to 10
-        #elif mode == "exam":
-            #self.questions = get_sap_cert_simulation_questions(questions, num=80)  # Exam still uses 80 questions
+            self.questions = get_tag_based_random_questions(questions, num=10)
 
         self.references = references
         self.current_question = 0
@@ -170,7 +168,6 @@ class PracticeTestApp:
         self.next_button.pack(pady=20)
 
         self.load_question()
-
 
     def load_question(self):
         # Load current question into the interface
