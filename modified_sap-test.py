@@ -85,7 +85,7 @@ def save_question_history(history):
         pickle.dump(history, f)
 
 # Get rotating questions to avoid repetition
-def get_rotating_questions(questions, num=20, num_sets=1):
+def get_rotating_questions(questions, num=10, num_sets=5):
     history = load_question_history()
 
     # Divide questions into subsets for rotation
@@ -112,7 +112,7 @@ def get_rotating_questions(questions, num=20, num_sets=1):
 
 
 # Get questions based on tags (categories) with handling for smaller sample sizes
-def get_tag_based_random_questions(questions, num=20):
+def get_tag_based_random_questions(questions, num=10):
     # Define categories by tags
     categorized_questions = {}
     
@@ -143,11 +143,9 @@ class PracticeTestApp:
 
         # Switch between rotating or tag-based strategy
         if mode == "rotating":
-            self.questions = get_rotating_questions(questions, num=20)  # Changed num to 10
+            self.questions = get_rotating_questions(questions, num=10)
         elif mode == "tag":
-            self.questions = get_tag_based_random_questions(questions, num=20)  # Changed num to 10
-        #elif mode == "exam":
-            #self.questions = get_sap_cert_simulation_questions(questions, num=80)  # Exam still uses 80 questions
+            self.questions = get_tag_based_random_questions(questions, num=10)
 
         self.references = references
         self.current_question = 0
@@ -170,7 +168,6 @@ class PracticeTestApp:
         self.next_button.pack(pady=20)
 
         self.load_question()
-
 
     def load_question(self):
         # Load current question into the interface
@@ -291,18 +288,10 @@ class PracticeTestApp:
 
 # Main function to start the application
 def main():
-    # Prompt the user to choose the mode using numbers
-    print("Choose the mode for the test:")
-    print("1. Rotating")
-    print("2. Tag")
-    
-    mode_input = input("Enter 1 or 2: ").strip()
-    
-    while mode_input not in ['1', '2']:
-        print("Invalid choice. Please enter 1 for rotating or 2 for tag.")
-        mode_input = input("Enter 1 or 2: ").strip()
-
-    mode = "rotating" if mode_input == '1' else "tag"
+    # Use argparse to get the mode from the command-line arguments
+    parser = argparse.ArgumentParser(description="SAP Certification Practice Test")
+    parser.add_argument('--mode', choices=['rotating', 'tag'], default='rotating', help="Choose the mode for the test: rotating or tag.")
+    args = parser.parse_args()
 
     # Parse the questions and references
     questions = parse_questions("PracticeTestChatGptGenerated.docx")
@@ -310,7 +299,7 @@ def main():
 
     # Start the GUI
     root = tk.Tk()
-    app = PracticeTestApp(root, questions, references, mode=mode)
+    app = PracticeTestApp(root, questions, references, mode=args.mode)
     root.mainloop()
 
 
