@@ -2,6 +2,7 @@ import argparse
 import tkinter as tk
 from tkinter import messagebox
 from docx import Document
+import warnings
 import random
 import openai
 import os
