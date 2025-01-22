@@ -191,7 +191,6 @@ class PracticeTestApp:
             selected = self.user_answers[i]
             correct_answer = q[4]  # Assuming the correct answer is stored in the 5th column
             question_text = q[2]
-            explanation = q[5]  # Assuming the explanation is stored in the 6th column
             
             selected_option_text = q[3].split(', ')[int(selected)]  # Get the selected option text
             correct_option_text = correct_answer  # Assuming the correct answer is stored as a single letter
@@ -210,7 +209,8 @@ class PracticeTestApp:
                 result_text_widget.insert(tk.END, f"Correct Answer: {correct_option_text} (Correct)\n\n", "correct")
                 result_summary += f"Q{i + 1}: Wrong\nYour Answer: {selected_option_text}\nCorrect Answer: {correct_option_text}\n"
             
-            # Display the explanation for the selected answer
+            # Get explanation from OpenAI
+            explanation = self.get_explanation(question_text, correct_option_text)
             result_text_widget.insert(tk.END, f"Explanation: {explanation}\n\n")
         
         score_text = f"Your Score: {correct}/{len(self.questions)}\n\n"
@@ -224,6 +224,30 @@ class PracticeTestApp:
         
         ok_button = tk.Button(results_window, text="OK", command=results_window.destroy)
         ok_button.grid(row=1, column=0, columnspan=2, pady=10)
+
+    def get_explanation(self, question, correct_answer):
+        """Get explanation from OpenAI API using direct API call."""
+        prompt = f"Explain why the answer '{correct_answer}' is correct for the following question: {question}"
+        
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",  # or any other model you prefer
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+        
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+        
+        if response.status_code == 200:
+            explanation = response.json()['choices'][0]['message']['content']
+            return explanation
+        else:
+            return "Error retrieving explanation from OpenAI API."
 
 # ----------------------------
 # Main Function
