@@ -1,6 +1,6 @@
 import argparse
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 from tkinter import ttk
 from docx import Document
 import random
@@ -212,7 +212,18 @@ class PracticeTestApp:
             # Get explanation from OpenAI
             explanation = self.get_explanation(question_text, correct_option_text)
             result_text_widget.insert(tk.END, f"Explanation: {explanation}\n\n")
-        
+            
+            # Load references for the topic
+            topic = q[1]  # Assuming the topic is in the second column
+            references = load_references(self.db_name, topic)
+            if references:
+                result_text_widget.insert(tk.END, "References:\n" + "\n".join(references) + "\n\n")
+            else:
+                # Prompt to add a new reference
+                add_reference = messagebox.askyesno("Add Reference", f"No references found for '{topic}'. Would you like to add one?")
+                if add_reference:
+                    self.add_reference(topic)
+
         score_text = f"Your Score: {correct}/{len(self.questions)}\n\n"
         result_text_widget.insert(tk.END, score_text)
         result_summary += score_text
@@ -224,6 +235,17 @@ class PracticeTestApp:
         
         ok_button = tk.Button(results_window, text="OK", command=results_window.destroy)
         ok_button.grid(row=1, column=0, columnspan=2, pady=10)
+
+    def add_reference(self, topic):
+        """Prompt user to add a new reference for the given topic."""
+        new_reference = simpledialog.askstring("Add Reference", f"Enter a new reference for '{topic}':")
+        if new_reference:
+            conn = sqlite3.connect(self.db_name)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO study_references (subject, reference) VALUES (?, ?)", (topic, new_reference))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success", "Reference added successfully!")
 
     def get_explanation(self, question, correct_answer):
         """Get explanation from OpenAI API using direct API call."""

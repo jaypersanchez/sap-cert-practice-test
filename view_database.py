@@ -1,86 +1,89 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
 import sqlite3
 
-def view_all_tables(db_name):
-    """Retrieve and display all table names in the database."""
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = cursor.fetchall()
-    
-    print("Tables in the Database:")
-    for table in tables:
-        print(f"- {table[0]}")
-    
-    conn.close()
+class ViewDatabaseApp:
+    def __init__(self, master, db_name):
+        self.master = master
+        self.master.title("View Database")
+        self.db_name = db_name
+        
+        self.label = tk.Label(master, text="Select a table to view:")
+        self.label.pack(pady=10)
 
-def view_all_questions(db_name):
-    """Retrieve and display all questions from the database."""
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM questions")
-    rows = cursor.fetchall()
-    
-    print("All Questions in the Database:")
-    for row in rows:
-        print(f"ID: {row[0]}, Subject: {row[1]}, Question: {row[2]}, Options: {row[3]}, Answer: {row[4]}, Explanation: {row[5]}, Tags: {row[6]}")
-    
-    conn.close()
+        self.table_listbox = tk.Listbox(master)
+        self.table_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
+        self.table_listbox.bind('<<ListboxSelect>>', self.on_table_select)
 
-def view_questions_by_subject(db_name, subject):
-    """Retrieve and display questions for a specific subject."""
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM questions WHERE subject = ?", (subject,))
-    rows = cursor.fetchall()
-    
-    if rows:
-        print(f"Questions for Subject: {subject}")
-        for row in rows:
-            print(f"ID: {row[0]}, Question: {row[2]}, Options: {row[3]}, Answer: {row[4]}, Explanation: {row[5]}, Tags: {row[6]}")
-    else:
-        print(f"No questions found for subject: {subject}")
-    
-    conn.close()
+        # Create a Treeview for displaying data
+        self.tree = ttk.Treeview(master)
+        self.tree.pack(pady=10, fill=tk.BOTH, expand=True)
 
-def run_custom_query(db_name, query):
-    """Run a custom SQL query and display the results."""
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute(query)
-        if query.strip().lower().startswith("select"):
-            rows = cursor.fetchall()
-            for row in rows:
-                print(row)
-        else:
-            conn.commit()
-            print("Query executed successfully.")
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-    finally:
+        self.show_data_button = tk.Button(master, text="Show Data", command=self.show_data)
+        self.show_data_button.pack(pady=10)
+
+        self.load_tables()
+
+    def load_tables(self):
+        """Load table names from the database and display them in the listbox."""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        
         conn.close()
+        
+        for table in tables:
+            self.table_listbox.insert(tk.END, table[0])  # Insert table names into the listbox
+
+    def on_table_select(self, event):
+        """Handle table selection from the listbox."""
+        selected_index = self.table_listbox.curselection()
+        if selected_index:
+            self.selected_table = self.table_listbox.get(selected_index)
+            self.tree.delete(*self.tree.get_children())  # Clear previous data
+
+    def show_data(self):
+        """Show data from the selected table."""
+        selected_index = self.table_listbox.curselection()
+        if not selected_index:
+            messagebox.showwarning("No Selection", "Please select a table to view.")
+            return
+        
+        table_name = self.table_listbox.get(selected_index)
+        
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        
+        cursor.execute(f"SELECT * FROM {table_name};")  # Retrieve all data from the selected table
+        rows = cursor.fetchall()
+        column_names = [description[0] for description in cursor.description]  # Get column names
+        
+        conn.close()
+        
+        # Clear the Treeview
+        self.tree.delete(*self.tree.get_children())
+        
+        # Define the columns
+        self.tree["columns"] = column_names
+        self.tree["show"] = "headings"  # Hide the first empty column
+
+        # Create column headings
+        for col in column_names:
+            self.tree.heading(col, text=col)  # Set the column heading
+            self.tree.column(col, anchor="center")  # Center align the column
+
+        # Insert rows into the Treeview
+        for row in rows:
+            self.tree.insert("", "end", values=row)
+
+# Main function to run the application
+def main():
+    db_name = 'questions.db'  # Your database name
+    root = tk.Tk()
+    app = ViewDatabaseApp(root, db_name)
+    root.mainloop()
 
 if __name__ == "__main__":
-    db_name = 'questions.db'  # Database name
-    
-    # View all tables
-    view_all_tables(db_name)
-    
-    # View all questions
-    view_all_questions(db_name)
-    
-    # Example: View questions for a specific subject
-    subject_to_view = input("Enter the subject to view questions (or press Enter to skip): ")
-    if subject_to_view:
-        view_questions_by_subject(db_name, subject_to_view)
-
-    # Run custom SQL queries
-    while True:
-        custom_query = input("Enter a SQL statement to execute (or type 'exit' to quit): ")
-        if custom_query.lower() == 'exit':
-            break
-        run_custom_query(db_name, custom_query)
+    main()
