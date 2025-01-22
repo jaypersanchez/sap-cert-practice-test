@@ -22,6 +22,10 @@ class ViewDatabaseApp:
         self.show_data_button = tk.Button(master, text="Show Data", command=self.show_data)
         self.show_data_button.pack(pady=10)
 
+        # Add an Exit button
+        self.exit_button = tk.Button(master, text="Exit", command=self.exit_app)
+        self.exit_button.pack(pady=10)
+
         self.load_tables()
 
     def load_tables(self):
@@ -78,11 +82,23 @@ class ViewDatabaseApp:
         for row in rows:
             self.tree.insert("", "end", values=row)
 
+    def exit_app(self):
+        """Close the application."""
+        self.master.destroy()
+
 # Main function to run the application
 def main():
     db_name = 'questions.db'  # Your database name
     root = tk.Tk()
+    
+    # Set the window to fullscreen
+    root.attributes('-fullscreen', True)
+    
     app = ViewDatabaseApp(root, db_name)
+    
+    # Optional: Allow the user to exit fullscreen with the Escape key
+    root.bind("<Escape>", lambda e: root.attributes('-fullscreen', False))
+
     root.mainloop()
 
 if __name__ == "__main__":
